@@ -1,0 +1,147 @@
+---
+title: "Practical Machine Learning Project"
+author: "Anshuman Vyas"
+date: "Sunday, November 23, 2014"
+output: html_document
+---
+
+##Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+##Data 
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+##Goal
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. Any of the other variables can be used to predict with.
+
+##Loading Libraries
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+```
+
+##Getting Data
+```{r cache=TRUE}
+training<-read.csv("./trainingdata.csv")
+testing<-read.csv("./testingdata.csv")
+set.seed(111)
+```
+
+##Partitioning Data
+```{r}
+inTrain<-createDataPartition(training$classe, p=0.6, list=FALSE)
+myTraining<-training[inTrain,]
+myTesting<-training[-inTrain,]
+```
+
+##Cleaning Data
+Before cleaning the data, the dimensions of myTraining are:
+```{r}
+dim(myTraining)
+```
+
+Step 1: Removing 1st 7 columns because they are specific to the participants and thus won't be god candidates for the Prediction Model.
+```{r}
+temp<-1:7
+myTraining<-myTraining[,-temp]
+dim(myTraining)
+```
+
+Step 2: Removing Variables with Near Zero Variance
+```{r}
+nzvData<-nearZeroVar(myTraining, saveMetrics=TRUE)
+myTraining<-myTraining[,!nzvData$nzv]
+dim(myTraining)
+```
+
+Step 3: Removing variables which have more than 60% NA values
+```{r}
+columnNumbersToRemove<-vector()
+vectorIndex<-0
+for(i in 1:ncol(myTraining)){
+  if((sum(is.na(myTraining[,i]))/nrow(myTraining))>=0.60){
+    vectorIndex<-vectorIndex+1
+    columnNumbersToRemove[vectorIndex]<-i
+  }
+}
+myTraining<-myTraining[,-columnNumbersToRemove]
+dim(myTraining)
+```
+
+Step 4: Doing the same steps for datasets "myTesting" and "testing"
+```{r}
+variables1<-colnames(myTraining)
+variables2<-colnames(myTraining[,-53])
+myTesting<-myTesting[variables1]
+testing<-testing[variables2]
+dim(myTesting)
+dim(testing)
+```
+
+
+##Applying Machine Learning Algorithms for Building Prediction Models:
+
+#### 1) Decision Tree:
+
+Building the model:
+```{r}
+modFit1 <- rpart(classe ~ ., data=myTraining, method="class")
+```
+
+Plot:
+```{r}
+fancyRpartPlot(modFit1)
+```
+
+Predicting:
+```{r}
+predictions1 <- predict(modFit1, myTesting, type = "class")
+```
+
+Results:
+```{r}
+confusionMatrix(predictions1, myTesting$classe)
+``` 
+
+We can see the Accuracy= 75.5%. Let's try using Random Forests to see if we can get a better accuracy.
+
+#### 2) Random Forests:
+
+Building the model:
+```{r}
+modFit2 <- randomForest(classe ~. , data=myTraining)
+```
+
+Predicting:
+```{r}
+predictions2 <- predict(modFit2, myTesting, type = "class")
+```
+
+Results:
+```{r}
+confusionMatrix(predictions2, myTesting$classe)
+``` 
+
+We now get an accuracy of 99.3%.
+
+## Result:
+Random Forests gives us an Accuracy of 99.3% which is more than the accuracy we got from Decision Trees. 
+The expected out-of-sample error is 100-99.3 = 0.7%.
+Therefore, Random Forests are chosen to predict classes for the test samples.
+
+##Predicting for the Test Samples
+```{r}
+finalPredictions<-predict(modFit2,testing, type= "class")
+finalPredictions
+``` 
